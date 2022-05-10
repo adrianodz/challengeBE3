@@ -1,20 +1,51 @@
 version: "3.8"
 services:
-  app:
-    build: .
-    volumes:
-      - .:/django
-    ports:
-      - 8000:8000
-    image: app:django
-    container_name: django_container
-    command: python manage.py runserver 0.0.0.0:8000
-    depends_on:
-      - db
   db:
     image: mysql:5.7
+    container_name: 'db_container'
     environment:
-      MYSQL_DATABASE: 'django-app-db'
+      MYSQL_DATABASE: 'challengeBE3'
       MYSQL_ALLOW_EMPTY_PASSWORD: 'true'
+    expose:
+      - "3306"
     volumes:
       - ./data/mysql/db:/var/lib/mysql
+
+  django:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      TZ: "America/Sao_Paulo"
+    volumes:
+      - .:/django
+    expose:
+      - "8000"
+    image: app:django  #image_name:image_tag
+    container_name: django_container
+    depends_on:
+      - db
+    env_file:
+      - .env
+    command: >
+      bash -c "
+      python manage.py collectstatic --no-input 
+      && gunicorn --bind 0.0.0.0:8000 core.wsgi:application --timeout 900 --workers=4
+      "
+  
+  nginx:
+    build: 
+      context: ./nginx
+      dockerfile: Dockerfile
+    volumes:
+      - ./static:/static
+      - ./media:/media
+    depends_on:
+      - db
+      - django
+    image: nginx_image:nginx_image_tag
+    container_name: nginx_container
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8000:8000"
